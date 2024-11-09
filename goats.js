@@ -4,6 +4,7 @@ const axios = require('axios');
 const colors = require('colors');
 const readline = require('readline');
 const { DateTime } = require('luxon');
+const randomUseragent = require('random-useragent');
 
 class Goats {
     constructor() {
@@ -20,7 +21,7 @@ class Goats {
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-site",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+            "User-Agent": randomUseragent.getRandom()
         };
     }
 
@@ -47,10 +48,10 @@ class Goats {
     async countdown(seconds) {
         for (let i = seconds; i >= 0; i--) {
             readline.cursorTo(process.stdout, 0);
-            process.stdout.write(`===== Waiting ${i} seconds to continue loop-D4rkCipherX =====`);
+            process.stdout.write(`===== Waiting ${i} seconds to continue =====`);
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        this.log('', 'info');
+        process.stdout.write(`\n`);
     }
 
     async login(rawData) {
@@ -159,6 +160,7 @@ class Goats {
             }
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
+        await this.countdown(1);
     }
 
     async getCheckinInfo(accessToken) {
@@ -238,30 +240,32 @@ class Goats {
             .split('\n')
             .filter(Boolean);
 
-        while (true) {
-            for (let i = 0; i < data.length; i++) {
-                const initData = data[i];
-                const userData = JSON.parse(decodeURIComponent(initData.split('user=')[1].split('&')[0]));
-                const userId = userData.id;
-                const firstName = userData.first_name;
+        const userTokens = {};
 
-                console.log(`========== Account ${i + 1} | ${firstName} ==========`.blue);
+        for (let i = 0; i < data.length; i++) {
+            const initData = data[i];
+            const userData = JSON.parse(decodeURIComponent(initData.split('user=')[1].split('&')[0]));
+            const firstName = userData.first_name;
+
+            console.log(`========== Account ${i + 1} | ${firstName} ==========`.blue);
+            if (!userTokens[userData.id]) {
                 const loginResult = await this.login(initData);
                 if (!loginResult.success) {
                     this.log(`Login failed for ${firstName}: ${loginResult.error}`, 'error');
                     continue;
                 }
-
-                this.log(`Login successful!`, 'success');
-                const accessToken = loginResult.data.accessToken;
-
-                await this.handleCheckin(accessToken);
-                await this.handleMissions(accessToken);
-
-                console.log(`Waiting for next account...`.yellow);
-                await this.countdown(60); // Wait for 17 seconds before the next loop
+                this.log(`Login successful for ${firstName}!`, 'success');
+                userTokens[userData.id] = loginResult.data.accessToken;
             }
+
+            const accessToken = userTokens[userData.id];
+            await this.handleCheckin(accessToken);
+            await this.handleMissions(accessToken);
         }
+
+        console.log(`Waiting for next round...`.yellow);
+        await this.countdown(60);
+        this.main();
     }
 }
 
